@@ -25,8 +25,6 @@ def login():
         password = request.form['password']
         user_type = request.form['user_type']
 
-        debug_info = f"<p>DEBUG: username='{username}', password='{password}', user_type='{user_type}'</p>"
-
         if user_type == 'librarian':
             if username in LibrarySystem.librarian and LibrarySystem.librarian[username] == password:
                 session['username'] = username
@@ -38,7 +36,7 @@ def login():
                 session['user_type'] = 'member'
                 return f"<h1>Welcome {username}! You are logged in as member.</h1>"
         
-        return f"<h1>Invalid credentials</h1>{debug_info}"
+        return "<h1>Invalid credentials</h1>"
         
     return '''
     <h2>Login</h2>
