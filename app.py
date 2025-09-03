@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
+from markupsafe import escape
 import os
 
 app = Flask(__name__)
@@ -29,12 +30,12 @@ def login():
             if username in LibrarySystem.librarian and LibrarySystem.librarian[username] == password:
                 session['username'] = username
                 session['user_type'] = 'librarian'
-                return f"<h1>Welcome {username}! You are logged in as librarian.</h1>"
+                return f"<h1>Welcome {escape(username)}! You are logged in as librarian.</h1>"
         elif user_type == 'member':
             if username in LibrarySystem.members and LibrarySystem.members[username] == password:
                 session['username'] = username
                 session['user_type'] = 'member'
-                return f"<h1>Welcome {username}! You are logged in as member.</h1>"
+                return f"<h1>Welcome {escape(username)}! You are logged in as member.</h1>"
         
         return "<h1>Invalid credentials</h1>"
         
