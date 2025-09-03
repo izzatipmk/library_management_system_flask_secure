@@ -22,9 +22,15 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        user_type = request.form['user_type']
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        user_type = request.form.get('user_type', '').strip()
+
+        if not username or not password or not user_type:
+            return "<h1>All fields are required</h1>"
+        
+        if user_type not in ['librarian', 'member', 'staff']:
+            return "<h1>Invalid user type specified</h1>"
 
         if user_type == 'librarian':
             if username in LibrarySystem.librarian and LibrarySystem.librarian[username] == password:
