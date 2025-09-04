@@ -1,15 +1,16 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from markupsafe import escape
+from werkzeug.security import generate_password_hash, check_password_hash
 import os
 
 app = Flask(__name__)
-app.secret_key = 'SECRET_KEY'
+app.secret_key = os.environ.get('THE_SECRET_KEY', 'dev-key-change-in-production')
 
 class LibrarySystem:
 
-    staff_members={'staff1': 'staff123'} 
-    members={'member1':'member123'} 
-    librarian = {'admin':'admin123'} 
+    staff_members={'staff1': generate_password_hash('staff123')} 
+    members={'member1':generate_password_hash('member123')} 
+    librarian = {'admin':generate_password_hash('admin123')} 
     available_books={'Python Programming':'John K', 'Cyber Security':'Alex R'} 
     borrowed_books={}
     member_books={} 
@@ -33,12 +34,12 @@ def login():
             return "<h1>Invalid user type specified</h1>"
 
         if user_type == 'librarian':
-            if username in LibrarySystem.librarian and LibrarySystem.librarian[username] == password:
+            if username in LibrarySystem.librarian and check_password_hash(LibrarySystem.librarian[username], password):
                 session['username'] = username
                 session['user_type'] = 'librarian'
                 return f"<h1>Welcome {escape(username)}! You are logged in as librarian.</h1>"
         elif user_type == 'member':
-            if username in LibrarySystem.members and LibrarySystem.members[username] == password:
+            if username in LibrarySystem.members and check_password_hash(LibrarySystem.members[username], password):
                 session['username'] = username
                 session['user_type'] = 'member'
                 return f"<h1>Welcome {escape(username)}! You are logged in as member.</h1>"
