@@ -2,23 +2,61 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from markupsafe import escape
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+import sqlite3
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('THE_SECRET_KEY', 'dev-key-change-in-production')
 
-class LibrarySystem:
+def init_db():
+    conn = sqlite3.connect('library.db')
+    cursor = conn.cursor()
 
-    staff_members={'staff1': generate_password_hash('staff123')} 
-    members={'member1':generate_password_hash('member123')} 
-    librarian = {'admin':generate_password_hash('admin123')} 
-    available_books={'Python Programming':'John K', 'Cyber Security':'Alex R'} 
-    borrowed_books={}
-    member_books={} 
+    cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   username TEXT UNIQUE NOT NULL,
+                   password_hash TEXT NOT NULL,
+                   user_type TEXT NOT NULL
+                   )
+                ''')
+    
+    cursor.execute('''
+                CREATE TABLE IF NOT EXISTS books (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   title TEXT NOT NULL,
+                   author TEXT NOT NULL,
+                   available BOOLEAN DEFAULT 1
+                   )
+                ''')
+    
+    try:
+        cursor.execute("INSERT INTO users (username, password_hash, user_type) VALUES (?, ?, ?)",
+                       ('admin', generate_password_hash('admin123'), 'librarian'))
+        cursor.execute("INSERT INTO users (username, password_hash, user_type) VALUES (?, ?, ?)",
+                       ('member1', generate_password_hash('member123'), 'member'))
+        cursor.execute("INSERT INTO users (username, password_hash, user_type) VALUES (?, ?, ?)",
+                       ('staff1', generate_password_hash('staff123'), 'staff'))
+    except sqlite3.IntegrityError:
+        pass
+
+    try:
+        cursor.execute("INSERT INTO books (title, author) VALUES (?, ?)",
+                       ('Python Programming', 'John K'))
+        cursor.execute("INSERT INTO books (title, author) VALUES (?, ?)",
+                       ('Cyber Security', 'Alex R'))
+    except sqlite3.IntegrityError:
+        pass
+
+    conn.commit()
+    conn.close()
 
 @app.route('/')
 def index():
-    #return "<h1>Hello! Library System works!</h1>"
-    return render_template('index.html')
+    return '''
+    <h1>Welcome to Library Management System</h1>
+    <p><a href="/login">Login</a></p>
+    <p><a href="/register">Register</a></p>
+    '''
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -32,17 +70,19 @@ def login():
         
         if user_type not in ['librarian', 'member', 'staff']:
             return "<h1>Invalid user type specified</h1>"
+        
+        conn = sqlite3.connect('library.db')
+        cursor = conn.cursor()
 
-        if user_type == 'librarian':
-            if username in LibrarySystem.librarian and check_password_hash(LibrarySystem.librarian[username], password):
-                session['username'] = username
-                session['user_type'] = 'librarian'
-                return f"<h1>Welcome {escape(username)}! You are logged in as librarian.</h1>"
-        elif user_type == 'member':
-            if username in LibrarySystem.members and check_password_hash(LibrarySystem.members[username], password):
-                session['username'] = username
-                session['user_type'] = 'member'
-                return f"<h1>Welcome {escape(username)}! You are logged in as member.</h1>"
+        query = f"SELECT username, password_hash FROM users WHERE username = '{username}' AND user_type ='{user_type}'"
+        cursor.execute(query)
+        result = cursor.fetchone()
+        conn.close()
+
+        if result and check_password_hash(result[1], password):
+            session['username'] = username
+            session['user_type'] = user_type
+            return f"<h1>Welcome {escape(username)}! You are logged in as {escape(user_type)}.</h1>"
         
         return "<h1>Invalid credentials</h1>"
         
@@ -65,83 +105,61 @@ def login():
                 <option value="">Select...</option>
                 <option value="librarian">Librarian</option>
                 <option value="member">Member</option>
+                <option value="staff">Staff</option>
             </select>
         </div>
         <br>
         <button type="submit">Login</button>
     </form>
     '''
-    
-
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form['username', ''].strip()
+        password = request.form['password', ''].strip()
 
-        if username not in LibrarySystem.members:
-            LibrarySystem.members[username] = password
-            flash('Registration successful! Please login.')
-            return redirect(url_for('login'))
-        else:
-            flash('Username already exists')
+        if not username or not password:
+            return "<h1>All field are required</h1>"
+        
+        conn = sqlite3.connect('library.db')
+        cursor = conn.cursor()
 
-    return render_template('register.html')
-
-@app.route('/librarian_dashboard')
-def librarian_dashboard():
-    if 'user_type' not in session or session['user_type'] != 'librarian':
-        return redirect(url_for('login'))
-    return render_template('librarian_dashboard.html', books = LibrarySystem.available_books)
-
-@app.route('/member_dashboard')
-def member_dashboard():
-    if 'username' not in session:
-        return redirect(url_for('login'))
-    return render_template('member_dashboard.html', available_books = LibrarySystem.available_books, borrowed_books = LibrarySystem.borrowed_books)
-
-@app.route('/add_book', methods=['POST'])
-def add_book():
-    if 'user_type' not in session or session['user_type'] != 'librarian':
-        return redirect(url_for('login'))
+        try:
+            cursor.execute("INSERT INTO users (username, password_hash, user_type) VALUES (?, ?, ?)",
+                           (username, generate_password_hash(password), 'member'))
+            conn.commit()
+            conn.close()
+            return "<h1>Registration successful! <a href='/login'>Login here</a></h1>"
+        except sqlite3.IntegrityError:
+            conn.close()
+            return "<h1>Username already exists</h1>"
     
-    title = request.form['title']
-    author = request.form['author']
-    LibrarySystem.available_books['title'] = author
-    flash(f'Book "{title}" added successfully!')
-    return redirect(url_for('librarian_dashboard'))
-
-@app.route('/borrow_book', methods=['POST'])
-def borrow_book():
-    if 'username' not in session:
-        return redirect(url_for('login'))
-    
-    title = request.form['title']
-    username = session['username']
-
-    if title in LibrarySystem.available_books:
-        author = LibrarySystem.available_books.pop(title)
-        LibrarySystem.borrowed_books[title] = author
-
-        if username not in LibrarySystem.member_books:
-            LibrarySystem.member_books[username] = []
-        LibrarySystem.member_books[username].append(title)
-
-        flash(f'Book "{title}" borrowed successfully!')
-    
-    else:
-        flash('Book not available')
-
-    return redirect(url_for('member_dashboard'))
+    return '''
+    <h2>Register</h2>
+    <form method="POST">
+        <div>
+            <label>Username:</label><br>
+            <input type="text" name="username" required>
+        </div>
+        <br>
+        <div>
+            <label>Password:</label><br>
+            <input type="password" name="password" required>
+        </div>
+        <br>
+        <button type="submit">Register</button>
+    </form>
+    '''
 
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('index'))        
+    return '<h1>Logged out successfully. <a href="/">Home</a></h1'   
             
 #This runs the program
 if __name__=='__main__':
+    init_db()
     app.run(debug=True)
 
     
