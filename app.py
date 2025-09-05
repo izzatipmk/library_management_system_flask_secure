@@ -79,9 +79,17 @@ def login():
         result = cursor.fetchone()
 
         if result and check_password_hash(result[1], password):
+            session.clear()
+            session.permanent = False
             session['username'] = username
             session['user_type'] = user_type
-            return f"<h1>Welcome {escape(username)}! You are logged in as {escape(user_type)}.</h1>"
+            session.modified = True
+
+            return f'''
+            <h1>Welcome {escape(username)}! You are logged in as {escape(user_type)}.</h1>
+            <p><a href="/logout">Logout</a></p>
+            <p><a href="/dashboard">Dashboard</a></p>
+            '''
         
         return "<h1>Invalid credentials</h1>"
         
@@ -115,8 +123,8 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username', ''].strip()
-        password = request.form['password', ''].strip()
+        username = request.form('username', '').strip()
+        password = request.form('password', '').strip()
 
         if not username or not password:
             return "<h1>All field are required</h1>"
@@ -154,7 +162,7 @@ def register():
 @app.route('/logout')
 def logout():
     session.clear()
-    return '<h1>Logged out successfully. <a href="/">Home</a></h1'   
+    return '<h1>Logged out successfully. <a href="/">Home</a></h1>'   
             
 #This runs the program
 if __name__=='__main__':
