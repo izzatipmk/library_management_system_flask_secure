@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from markupsafe import escape
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_wtf.csrf import generate_csrf
 import os
 import sqlite3
 
@@ -61,6 +62,13 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+
+        from flask_wtf.csrf import validate_csrf
+        try:
+            validate_csrf(request.form.get('csrf_token'))
+        except:
+            return "<h1>CSRF token missing or invalid</h1>", 400
+        
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
         user_type = request.form.get('user_type', '').strip()
@@ -93,9 +101,10 @@ def login():
         
         return "<h1>Invalid credentials</h1>"
         
-    return '''
+    return f'''
     <h2>Login</h2>
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{generate_csrf()}"/>
         <div>
             <label>Username:</label><br>
             <input type="text" name="username" required>
@@ -123,8 +132,15 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form('username', '').strip()
-        password = request.form('password', '').strip()
+
+        from flask_wtf.csrf import validate_csrf
+        try:
+            validate_csrf(request.form.get('csrf_token'))
+        except:
+            return "<h1>CSRF token missing or invalid</h1>", 400
+        
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
 
         if not username or not password:
             return "<h1>All field are required</h1>"
@@ -142,9 +158,10 @@ def register():
             conn.close()
             return "<h1>Username already exists</h1>"
     
-    return '''
+    return f'''
     <h2>Register</h2>
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{generate_csrf()}"/>
         <div>
             <label>Username:</label><br>
             <input type="text" name="username" required>
