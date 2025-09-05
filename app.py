@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf.csrf import generate_csrf
 import os
 import sqlite3
+import re
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('THE_SECRET_KEY', 'dev-key-change-in-production')
@@ -157,6 +158,21 @@ def register():
 
         if not username or not password:
             return "<h1>All field are required</h1>"
+        
+        if len(password) < 8:
+            return "<h1>Password must be at least 8 characters long</h1>"
+        
+        if not any(c.isupper() for c in password):
+            return "<h1>Password must contain at least one uppercase letter</h1>"
+        
+        if not any(c.islower() for c in password):
+            return "<h1>Password must contain at least one lowercase letter</h1>"
+        
+        if not any(c.isdigit() for c in password):
+            return "<h1>Password must contain at least one number</h1>"
+        
+        if not re.search(r"[@$!%*?&]", password):
+            return "<h1>Password must contain at least one special character (@$!%?&)</h1>"
         
         conn = sqlite3.connect('library.db')
         cursor = conn.cursor()
