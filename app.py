@@ -67,6 +67,11 @@ def admin_panel():
         return '<h1>Access denied - Librarians only</h1>'
     return '<h1>Admin Panel - You have librarian access!</h1>'
 
+@app.route('/test-error')
+def test_error():
+    x = 1 / 0 
+    return "This won't execute"
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -192,6 +197,6 @@ def logout():
 #This runs the program
 if __name__=='__main__':
     init_db()
-    app.run(debug=True)
+    app.run(debug=os.environ.get('FLASK_DEBUG', 'False').lower() == 'true')
 
     
