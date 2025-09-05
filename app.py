@@ -59,6 +59,14 @@ def index():
     <p><a href="/register">Register</a></p>
     '''
 
+@app.route('/admin')
+def admin_panel():
+    if 'username' not in session:
+        return '<h1>Please login first</h1>'
+    if session.get('user_type') != 'librarian':
+        return '<h1>Access denied - Librarians only</h1>'
+    return '<h1>Admin Panel - You have librarian access!</h1>'
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
