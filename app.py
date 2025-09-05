@@ -74,10 +74,9 @@ def login():
         conn = sqlite3.connect('library.db')
         cursor = conn.cursor()
 
-        query = f"SELECT username, password_hash FROM users WHERE username = '{username}' AND user_type ='{user_type}'"
-        cursor.execute(query)
+        cursor.execute("SELECT username, password_hash FROM users WHERE username = ? and user_type =?",
+                       (username, user_type))
         result = cursor.fetchone()
-        conn.close()
 
         if result and check_password_hash(result[1], password):
             session['username'] = username
