@@ -2,12 +2,18 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from markupsafe import escape
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf.csrf import generate_csrf
+from collections import defaultdict
+from datetime import datetime, timedelta
 import os
 import sqlite3
 import re
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('THE_SECRET_KEY', 'dev-key-change-in-production')
+
+login_attempts = defaultdict(list)
+RATE_LIMIT = 5
+RATE_WINDOW = 300
 
 def init_db():
     conn = sqlite3.connect('library.db')
@@ -83,6 +89,17 @@ def login():
         except:
             return "<h1>CSRF token missing or invalid</h1>", 400
         
+        client_ip = request.remote_addr
+        current_time = datetime.now()
+
+        login_attempts[client_ip] = [
+            attempt_time for attempt_time in login_attempts[client_ip]
+            if current_time - attempt_time < timedelta(seconds=RATE_WINDOW)
+        ]
+
+        if len(login_attempts[client_ip]) >= RATE_LIMIT:
+            return "<h1>Too many login attempts. Try again in 5 minutes.</h1>", 429
+        
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
         user_type = request.form.get('user_type', '').strip()
@@ -101,8 +118,11 @@ def login():
         result = cursor.fetchone()
 
         if result and check_password_hash(result[1], password):
+            if client_ip in login_attempts:
+                del login_attempts[client_ip]
+
             session.clear()
-            session.permanent = False
+            session.permanent = True
             session['username'] = username
             session['user_type'] = user_type
             session.modified = True
@@ -113,7 +133,9 @@ def login():
             <p><a href="/dashboard">Dashboard</a></p>
             '''
         
-        return "<h1>Invalid credentials</h1>"
+        else:
+            login_attempts[client_ip].append(current_time)
+            return "<h1>Invalid credentials</h1>"
         
     return f'''
     <h2>Login</h2>
