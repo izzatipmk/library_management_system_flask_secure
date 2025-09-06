@@ -1,7 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, request, session
 from markupsafe import escape
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_wtf.csrf import generate_csrf
+from flask_wtf.csrf import generate_csrf, validate_csrf, CSRFProtect
 from collections import defaultdict
 from datetime import datetime, timedelta
 import os
@@ -10,6 +10,8 @@ import re
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('THE_SECRET_KEY', 'dev-key-change-in-production')
+app.permanent_session_lifetime = timedelta(minutes=5)
+csrf = CSRFProtect(app)
 
 login_attempts = defaultdict(list)
 RATE_LIMIT = 5
@@ -79,11 +81,44 @@ def test_error():
     x = 1 / 0 
     return "This won't execute"
 
+@app.before_request
+def check_session_timeout():
+    if request.endpoint in ['login', 'register', 'index', 'static'] or request.endpoint is None:
+        return
+    
+    if 'username' in session:
+        if 'last_activity' in session:
+            session['last_activity'] = datetime.now().isoformat()
+            session.permanent = True
+            return
+        
+        last_activity = datetime.fromisoformat(session['last_activity'])
+        time_since_activity = datetime.now() - last_activity
+
+        if time_since_activity > app.permanent_session_lifetime:
+            session.clear()
+            return '<h1>Session expired. Please <a href="/login">login again</a></h1>'
+        session['last_activity'] = datetime.now().isoformat()
+
+@app.route('/dashboard')
+def dashboard():
+    if 'username' not in session:
+        return '<h1>Please login first</h1>'
+    
+    user_type = session.get('user_type', 'unknown')
+    username = session.get('username', 'unknown')
+
+    return f'''
+    <h1>Dashboard - Welcome {escape(username)}!</h1>
+    <p>You are logged in as: {escape(user_type)}</p>
+    <p><a href="/admin">Admin Panel</a> (Librarians only)</p>
+    <p><a href ="/logout">Logout</a></p>
+    '''
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
 
-        from flask_wtf.csrf import validate_csrf
         try:
             validate_csrf(request.form.get('csrf_token'))
         except:
@@ -125,6 +160,7 @@ def login():
             session.permanent = True
             session['username'] = username
             session['user_type'] = user_type
+            session['last_activity'] = datetime.now().isoformat()
             session.modified = True
 
             return f'''
@@ -169,7 +205,6 @@ def login():
 def register():
     if request.method == 'POST':
 
-        from flask_wtf.csrf import validate_csrf
         try:
             validate_csrf(request.form.get('csrf_token'))
         except:
@@ -179,7 +214,7 @@ def register():
         password = request.form.get('password', '').strip()
 
         if not username or not password:
-            return "<h1>All field are required</h1>"
+            return "<h1>All fields are required</h1>"
         
         if len(password) < 8:
             return "<h1>Password must be at least 8 characters long</h1>"
